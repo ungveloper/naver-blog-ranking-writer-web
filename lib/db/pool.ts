@@ -4,13 +4,13 @@ const BUILD_ONLY_DATABASE_URL =
   "postgresql://postgres:postgres@127.0.0.1:5432/postgres";
 
 declare global {
-  // eslint-disable-next-line no-var
   var __naverBlogRankingWriterPool: Pool | undefined;
 }
 
 function createPool() {
   return new Pool({
-    connectionString: process.env.DATABASE_URL || BUILD_ONLY_DATABASE_URL,
+    connectionString:
+      process.env.DATABASE_URL || BUILD_ONLY_DATABASE_URL,
     max: 5,
     idleTimeoutMillis: 20_000,
     connectionTimeoutMillis: 10_000,

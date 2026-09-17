@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "auth:migrate": "dotenv -e .env.local -- npx auth@latest migrate --yes",
-    "db:migrate:app": "dotenv -e .env.local -- node scripts/migrate-app-db.mjs"
+    "auth:migrate": "dotenv -e .env.local -- node scripts/auth-migrate.mjs",
+    "db:migrate:app": "dotenv -e .env.local -- node scripts/migrate-app-db.mjs",
+    "seed:hospital": "dotenv -e .env.local -- node scripts/seed-hospital.mjs",
+    "seed:cheongmac": "dotenv -e .env.local -- node scripts/seed-hospital.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
