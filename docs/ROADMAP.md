@@ -1,6 +1,6 @@
 # Roadmap
 
-## Phase 0 — Foundation (현재)
+## Phase 0 — Foundation ✅
 
 - Next.js / Tailwind / shadcn/ui
 - PRD/Architecture/Data Model 고정
@@ -10,13 +10,16 @@
 - Adaptive Interview JSON contract
 - 화면 Skeleton
 
-## Phase 1 — Supabase + Better Auth
+## Phase 1 — Supabase + Better Auth ◀ 현재
 
-- Supabase PostgreSQL
-- Better Auth
+- Supabase PostgreSQL ✅ 프로젝트 생성
+- Better Auth 코드 기반
 - Google Login
 - Naver Login
-- users / hospitals / hospital_members
+- Better Auth core tables
+- hospitals / hospital_members
+- OWNER / EDITOR / VIEWER
+- protected app routes
 
 ## Phase 2 — Hospital Profile
 
@@ -24,7 +27,8 @@
 - 공식 홈페이지/채널 조사
 - Hospital Source 저장
 - Hospital Fact 상태 관리
-- OWNER/EDITOR/VIEWER
+- 병원별 반복 문구 / CTA / 브랜드 문체
+- 공식 Source -> Draft -> 사용자 확인 -> VERIFIED
 
 ## Phase 3 — Project / Keyword
 
