@@ -38,6 +38,9 @@ type ResultRow = {
   origin: SerpResultOrigin;
   included: boolean;
   exclusion_reason: string | null;
+  section_area: string | null;
+  block_id: string | null;
+  dom_index: number | null;
 };
 
 export type StoredSerpCandidate = {
@@ -49,6 +52,9 @@ export type StoredSerpCandidate = {
   origin: SerpResultOrigin;
   included: boolean;
   exclusionReason: string | null;
+  sectionArea: string | null;
+  blockId: string | null;
+  domIndex: number | null;
 };
 
 export type StoredSerpSnapshot = {
@@ -152,7 +158,10 @@ async function saveSnapshot(
           url,
           normalized_url,
           origin,
-          included
+          included,
+          section_area,
+          block_id,
+          dom_index
         )
         values (
           $1,
@@ -161,7 +170,10 @@ async function saveSnapshot(
           $4,
           $5,
           $6,
-          $7
+          $7,
+          $8,
+          $9,
+          $10
         )
       `,
       [
@@ -172,6 +184,9 @@ async function saveSnapshot(
         result.normalizedUrl,
         result.origin ?? "INTEGRATED",
         result.included,
+        result.sectionArea ?? null,
+        result.blockId ?? null,
+        result.domIndex ?? null,
       ],
     );
   }
@@ -317,7 +332,10 @@ export async function getLatestSerpSnapshotsForProject(
         normalized_url,
         origin,
         included,
-        exclusion_reason
+        exclusion_reason,
+        section_area,
+        block_id,
+        dom_index
       from serp_results
       where snapshot_id = any($1::uuid[])
       order by snapshot_id, rank
@@ -342,6 +360,9 @@ export async function getLatestSerpSnapshotsForProject(
       origin: row.origin,
       included: row.included,
       exclusionReason: row.exclusion_reason,
+      sectionArea: row.section_area,
+      blockId: row.block_id,
+      domIndex: row.dom_index,
     });
 
     resultMap.set(row.snapshot_id, list);
@@ -387,11 +408,11 @@ export async function resolveSerpBenchmarkSelection(
   }
 
   if (
-    resultIds.length < 5 ||
+    resultIds.length < 1 ||
     resultIds.length > 10
   ) {
     throw new Error(
-      "Benchmark 후보는 5~10개를 선택하세요.",
+      "통합검색에 실제 노출된 Naver Blog 글 중 1~10개를 선택하세요.",
     );
   }
 
@@ -410,6 +431,7 @@ export async function resolveSerpBenchmarkSelection(
         on ss.id = sr.snapshot_id
       where ss.id = $1
         and ss.project_id = $2
+        and sr.origin = 'INTEGRATED'
         and sr.id = any($3::uuid[])
       order by sr.rank
     `,
@@ -418,7 +440,7 @@ export async function resolveSerpBenchmarkSelection(
 
   if (result.rows.length !== resultIds.length) {
     throw new Error(
-      "선택한 SERP 후보 중 현재 프로젝트에 속하지 않는 항목이 있습니다.",
+      "선택한 항목 중 현재 통합검색 snapshot의 Naver Blog 결과가 아닌 항목이 있습니다.",
     );
   }
 

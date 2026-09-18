@@ -5,26 +5,39 @@
 증상:
 
 ```text
-Uncaught TypeError: Cannot read properties of undefined (reading 'startTime')
+VM1306:2 Uncaught TypeError:
+Cannot read properties of undefined (reading 'startTime')
 at et.reportAllChanges (<anonymous>:2:19429)
 ...
-at n.timeout (<anonymous>:2:5652)
 ```
 
-`VM123:2`, `VM844:2`처럼 `VM*` anonymous script에서 나오고 application source frame이 없는 경우,
-현재 알려진 Chrome DevTools / web-vitals soft-navigation 계열 문제와 동일한 패턴이다.
+### 현재 판단
 
-프로젝트 애플리케이션 코드에는 `reportAllChanges` 호출이 없다.
+`VM*` anonymous script에서 발생하고 application source frame이 없는 동일 stack은
+2026년 Chrome DevTools / web-vitals soft-navigation 계열 문제로 공개 보고되어 있다.
 
-### 대응
+이 저장소의 application source에는 `reportAllChanges`나 `startTime` 호출을 두지 않는다.
 
-1. Chrome을 최신 버전으로 업데이트한다.
-2. DevTools를 닫고 앱 기능 자체가 정상인지 별도로 확인한다.
-3. 영향을 받는 Chrome 버전에서 개발 중 임시 대응이 필요하면 아래 flag를 Disabled로 변경한 뒤 Chrome을 재시작한다.
+### 왜 앱 패치로 숨기지 않는가
+
+이 오류를 없애겠다고:
+- `window.onerror`
+- 전역 exception suppression
+- console monkey patch
+
+를 넣으면 실제 앱 오류까지 숨길 수 있으므로 사용하지 않는다.
+
+### 로컬 개발에서 오류를 멈추는 방법
+
+Chrome 주소창:
 
 ```text
 chrome://flags/#soft-navigation-heuristics
 ```
+
+1. `Soft Navigation Heuristics`를 `Disabled`
+2. Chrome 완전 재시작
+3. localhost 다시 열기
 
 Edge:
 
@@ -32,9 +45,10 @@ Edge:
 edge://flags/#soft-navigation-heuristics
 ```
 
-공개 보고 기준으로 이 문제는 Chrome 153에서 수정된 것으로 안내되고 있다.
+또는 이 문제가 수정된 Chrome 버전으로 업데이트한다.
 
-### 앱 코드 정책
+### 재확인
 
-이 DevTools 오류를 숨기기 위한 전역 error suppression은 앱에 추가하지 않는다.
-DevTools VM 오류와 실제 Next.js/server action 오류를 분리해 진단한다.
+- DevTools를 닫은 상태에서 앱 기능이 정상 동작하는지 확인
+- 시크릿 창 + 확장 프로그램 비활성 상태로 비교
+- `VM*`이 아니라 `/app/...`, `/_next/...` 등 실제 앱 파일 stack이 나타날 때만 앱 오류로 별도 추적

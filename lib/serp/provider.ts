@@ -10,7 +10,6 @@ export interface SerpSearchInput {
 
 export type SerpResultOrigin =
   | "INTEGRATED"
-  | "BLOG_TAB_FALLBACK"
   | "VIEW_FALLBACK";
 
 export interface SerpResult {
@@ -21,6 +20,9 @@ export interface SerpResult {
   origin?: SerpResultOrigin;
   included: boolean;
   exclusionReason?: string;
+  sectionArea?: string;
+  blockId?: string;
+  domIndex?: number;
 }
 
 export interface SerpSnapshot {

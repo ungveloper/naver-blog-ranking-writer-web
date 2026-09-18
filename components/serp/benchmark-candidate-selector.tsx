@@ -8,7 +8,7 @@ export type BenchmarkCandidateItem = {
   rank: number;
   title: string;
   url: string;
-  origin: "INTEGRATED" | "BLOG_TAB_FALLBACK" | "VIEW_FALLBACK";
+  origin: "INTEGRATED" | "VIEW_FALLBACK";
   included: boolean;
 };
 
@@ -28,7 +28,7 @@ export function BenchmarkCandidateSelector({
       .filter((candidate) => candidate.included)
       .map((candidate) => candidate.id);
 
-    if (stored.length >= 5 && stored.length <= 10) {
+    if (stored.length >= 1 && stored.length <= 10) {
       return stored;
     }
 
@@ -43,7 +43,7 @@ export function BenchmarkCandidateSelector({
 
   const selectedCount = selected.size;
   const valid =
-    selectedCount >= 5 && selectedCount <= 10;
+    selectedCount >= 1 && selectedCount <= 10;
 
   function toggle(id: string) {
     setSelected((current) => {
@@ -78,15 +78,25 @@ export function BenchmarkCandidateSelector({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-muted/40 px-4 py-3 text-sm">
         <p>
           선택{" "}
-          <strong>{selectedCount}</strong>/10
+          <strong>{selectedCount}</strong>/
+          {Math.min(10, candidates.length)}
           <span className="ml-2 text-muted-foreground">
-            · 최종 Benchmark는 5~10개
+            · 권장 표본 5~10개
           </span>
         </p>
         <p className="text-xs text-muted-foreground">
-          통합검색 노출 후보를 우선 사용합니다.
+          통합검색에 실제 노출된 Naver Blog 글만 표시
         </p>
       </div>
+
+      {candidates.length < 5 ? (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs leading-5">
+          현재 통합검색에서 확인된 Naver Blog 게시글이{" "}
+          <strong>{candidates.length}개</strong>뿐입니다.
+          블로그탭 결과를 섞지 않고 이 표본만 분석합니다.
+          5개 미만 분석은 표본 신뢰도가 낮다고 표시됩니다.
+        </div>
+      ) : null}
 
       <div className="grid gap-3">
         {candidates.map((candidate) => {
@@ -115,14 +125,10 @@ export function BenchmarkCandidateSelector({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-medium text-muted-foreground">
-                      #{candidate.rank}
+                      통합검색 Blog #{candidate.rank}
                     </span>
                     <span className="rounded-full border px-2 py-0.5 text-[11px]">
-                      {candidate.origin === "INTEGRATED"
-                        ? "통합검색 노출"
-                        : candidate.origin === "BLOG_TAB_FALLBACK"
-                          ? "블로그탭 보완 후보"
-                          : "구 VIEW 보완 후보"}
+                      통합검색 실제 노출
                     </span>
                   </div>
 
@@ -154,17 +160,20 @@ export function BenchmarkCandidateSelector({
           disabled={!valid}
           className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
-          선택한 글로 Benchmark 분석
+          선택한 통합검색 글로 Benchmark 분석
         </button>
 
         {!valid ? (
           <p className="text-xs text-destructive">
-            5~10개를 선택해야 분석할 수 있습니다.
+            최소 1개 이상 선택해야 합니다.
+          </p>
+        ) : selectedCount < 5 ? (
+          <p className="text-xs text-amber-700">
+            5개 미만 표본으로 분석하며 결과에 제한 표본 경고가 표시됩니다.
           </p>
         ) : (
           <p className="text-xs text-muted-foreground">
-            선택 글의 본문·이미지·키워드 패턴을 실제로
-            파싱해 저장합니다.
+            선택 글의 본문·이미지·키워드 패턴을 실제로 파싱해 저장합니다.
           </p>
         )}
       </div>

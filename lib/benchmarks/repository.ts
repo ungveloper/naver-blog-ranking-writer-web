@@ -92,9 +92,9 @@ export async function importBenchmarkUrls(
     throw new Error("BENCHMARK_IMPORT_FORBIDDEN");
   }
 
-  if (urls.length < 5 || urls.length > 10) {
+  if (urls.length < 1 || urls.length > 10) {
     throw new Error(
-      "Benchmark는 5~10개를 선택하세요.",
+      "Benchmark는 통합검색 실제 노출 글 중 1~10개를 선택하세요.",
     );
   }
 
@@ -112,7 +112,7 @@ export async function importBenchmarkUrls(
           : "알 수 없는 파싱 오류";
 
       throw new Error(
-        `${index + 1}번째 검색 결과 글 파싱 실패: ${message}`,
+        `${index + 1}번째 통합검색 Blog 글 파싱 실패: ${message}`,
       );
     }
 
@@ -358,6 +358,10 @@ export function summarizeBenchmarks(
 
   return {
     count: benchmarks.length,
+    sampleAdequacy:
+      benchmarks.length >= 5
+        ? ("STANDARD" as const)
+        : ("LIMITED" as const),
     textLengthMedian: median(lengths),
     textLengthMin: Math.min(...lengths),
     textLengthMax: Math.max(...lengths),

@@ -9,14 +9,11 @@ import {
   normalizeNaverBlogUrl,
   type SerpProvider,
   type SerpResult,
-  type SerpResultOrigin,
   type SerpSearchInput,
   type SerpSnapshot,
 } from "@/lib/serp/provider";
 
-const MAX_CANDIDATES = 20;
-const INTEGRATED_TARGET = 10;
-const BLOG_PAGE_STARTS = [1, 11, 21];
+const MAX_CANDIDATES = 10;
 
 const MOBILE_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
@@ -25,17 +22,22 @@ const DESKTOP_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36";
 
 type SearchProviderName =
-  | "NAVER_HTTP_HTML"
-  | "NAVER_LOCAL_BROWSER_DOM";
-
-type SearchMode =
-  | "INTEGRATED"
-  | "BLOG";
+  | "NAVER_HTTP_INTEGRATED"
+  | "NAVER_LOCAL_BROWSER_INTEGRATED";
 
 type SearchFetchResult = {
   url: string;
   html: string;
   provider: SearchProviderName;
+};
+
+type IntegratedCandidate = {
+  title: string;
+  url: string;
+  normalizedUrl: string;
+  sectionArea?: string;
+  blockId?: string;
+  domIndex: number;
 };
 
 function normalizeText(value: string) {
@@ -105,17 +107,13 @@ function extractBlogUrlFromValue(
       for (
         const value of parsed.searchParams.values()
       ) {
-        const decoded =
-          decodeRepeatedly(value);
-
-        if (decoded !== value) {
-          candidates.add(decoded);
-        }
-
         candidates.add(value);
+        candidates.add(
+          decodeRepeatedly(value),
+        );
       }
     } catch {
-      // Naver attributes can contain partial URLs.
+      // Naver 속성에는 완전한 URL이 아닌 값도 들어간다.
     }
   }
 
@@ -139,6 +137,19 @@ function extractAnchorTitle(
 ) {
   const anchor = $(element);
 
+  const headline = normalizeText(
+    anchor
+      .find(
+        ".sds-comps-text-type-headline1, [data-template-id='title']",
+      )
+      .first()
+      .text(),
+  );
+
+  if (headline.length >= 4) {
+    return headline.slice(0, 180);
+  }
+
   const directCandidates = [
     anchor.attr("title"),
     anchor.attr("aria-label"),
@@ -156,41 +167,34 @@ function extractAnchorTitle(
   }
 
   const parent = anchor.closest(
-    "li, article, .bx, .view_wrap, .api_subject_bx, .fds-collection-root",
+    "[data-template-id='ugcItem'], li, article, .api_subject_bx, .fds-web-doc-root",
   );
 
-  const parentText = normalizeText(
-    parent.text(),
+  const parentHeadline = normalizeText(
+    parent
+      .find(".sds-comps-text-type-headline1")
+      .first()
+      .text(),
   );
 
-  if (parentText.length >= 4) {
-    return parentText.slice(0, 180);
+  if (parentHeadline.length >= 4) {
+    return parentHeadline.slice(0, 180);
   }
 
-  return `Naver Blog 검색 결과 ${fallbackRank}`;
+  return `Naver 통합검색 Blog 결과 ${fallbackRank}`;
 }
 
-function extractCandidates(
-  html: string,
-  origin: SerpResultOrigin,
+function collectPostAnchorsFromRoot(
+  $: cheerio.CheerioAPI,
+  root: cheerio.Cheerio<Element>,
+  domIndex: number,
 ) {
-  const $ = cheerio.load(html);
-  const ordered: Array<{
-    title: string;
-    url: string;
-    normalizedUrl: string;
-    origin: SerpResultOrigin;
-  }> = [];
-
-  const seen = new Map<
+  const found = new Map<
     string,
-    {
-      index: number;
-      titleLength: number;
-    }
+    IntegratedCandidate
   >();
 
-  $("a").each((_, element) => {
+  root.find("a").each((_, element) => {
     const anchor = $(element);
 
     const values = [
@@ -220,78 +224,96 @@ function extractCandidates(
     const title = extractAnchorTitle(
       $,
       element,
-      ordered.length + 1,
+      found.size + 1,
     );
 
     const existing =
-      seen.get(normalizedUrl);
+      found.get(normalizedUrl);
 
-    if (existing) {
-      if (
-        title.length >
-        existing.titleLength
-      ) {
-        ordered[existing.index].title =
-          title;
-        existing.titleLength =
-          title.length;
-      }
-
-      return;
+    if (
+      !existing ||
+      title.length > existing.title.length
+    ) {
+      found.set(normalizedUrl, {
+        title,
+        url: normalizedUrl,
+        normalizedUrl,
+        sectionArea:
+          root.attr("data-meta-area") ||
+          undefined,
+        blockId:
+          root.attr("data-block-id") ||
+          undefined,
+        domIndex,
+      });
     }
-
-    seen.set(normalizedUrl, {
-      index: ordered.length,
-      titleLength: title.length,
-    });
-
-    ordered.push({
-      title,
-      url: normalizedUrl,
-      normalizedUrl,
-      origin,
-    });
   });
 
-  return ordered;
+  return Array.from(found.values());
 }
 
-function buildSearchUrl(
-  input: SerpSearchInput,
-  mode: SearchMode,
-  start = 1,
+function extractIntegratedBlogCandidates(
+  html: string,
 ) {
-  if (mode === "BLOG") {
-    const url = new URL(
-      "https://search.naver.com/search.naver",
-    );
+  const $ = cheerio.load(html);
+  const roots = $(
+    "[data-fender-root='true']",
+  );
 
-    url.searchParams.set(
-      "ssc",
-      "tab.blog.all",
-    );
-    url.searchParams.set(
-      "sm",
-      start <= 1
-        ? "tab_jum"
-        : "tab_pge",
-    );
-    url.searchParams.set(
-      "query",
-      input.keyword,
-    );
-    url.searchParams.set(
-      "start",
-      String(start),
-    );
-    url.searchParams.set(
-      "nso",
-      "so:r,p:all,a:all",
-    );
+  const ordered: IntegratedCandidate[] = [];
+  const seen = new Set<string>();
 
-    return url.toString();
+  roots.each((rootIndex, rootElement) => {
+    const root = $(rootElement);
+
+    // 이 페이지 자체가 Naver 통합검색 URL이므로,
+    // FENDER root 안에서 '실제 Naver Blog 게시글 URL'만 뽑는다.
+    // 첨부 HTML의 data-meta-ssc=tab.nx.all / review_blog_rra / web_basic
+    // 등 세부 템플릿 이름은 기록하되 특정 템플릿 하나에 종속하지 않는다.
+    const rootCandidates =
+      collectPostAnchorsFromRoot(
+        $,
+        root,
+        rootIndex + 1,
+      );
+
+    for (const candidate of rootCandidates) {
+      if (
+        seen.has(candidate.normalizedUrl)
+      ) {
+        continue;
+      }
+
+      seen.add(candidate.normalizedUrl);
+      ordered.push(candidate);
+
+      if (
+        ordered.length >= MAX_CANDIDATES
+      ) {
+        return false;
+      }
+    }
+  });
+
+  if (ordered.length > 0) {
+    return ordered;
   }
 
+  // Naver가 FENDER root 표기를 바꾼 경우의 제한적 호환.
+  // 여전히 '현재 통합검색 페이지 내부'의 실제 Blog 게시글만 허용한다.
+  const fallbackRoot =
+    $.root() as unknown as cheerio.Cheerio<Element>;
+
+  return collectPostAnchorsFromRoot(
+    $,
+    fallbackRoot,
+    1,
+  ).slice(0, MAX_CANDIDATES);
+}
+
+function buildIntegratedSearchUrl(
+  input: SerpSearchInput,
+) {
   const mobile =
     input.device === "MOBILE";
 
@@ -340,12 +362,10 @@ function looksLikeSecurityPage(
     return false;
   }
 
-  const candidates = extractCandidates(
-    html,
-    "INTEGRATED",
+  return (
+    extractIntegratedBlogCandidates(html)
+      .length === 0
   );
-
-  return candidates.length === 0;
 }
 
 async function fetchWithHttp(
@@ -370,59 +390,18 @@ async function fetchWithHttp(
       AbortSignal.timeout(15_000),
   });
 
-  const html = await response.text();
-
   return {
     ok: response.ok,
     status: response.status,
-    html,
+    html: await response.text(),
   };
 }
 
-async function fetchWithBrowser(
-  url: string,
+async function fetchIntegratedPage(
   input: SerpSearchInput,
 ): Promise<SearchFetchResult> {
-  const captured =
-    await captureUrlWithLocalBrowser(
-      url,
-      input.device,
-    );
-
-  if (
-    looksLikeSecurityPage(captured.html)
-  ) {
-    throw new Error(
-      "Naver 검색을 로컬 Chrome으로 열었지만 보안 확인/접근 제한 페이지가 반환되었습니다. CAPTCHA나 제한을 우회하지 않고 중단했습니다.",
-    );
-  }
-
-  return {
-    url,
-    html: captured.html,
-    provider:
-      "NAVER_LOCAL_BROWSER_DOM",
-  };
-}
-
-function originForMode(
-  mode: SearchMode,
-): SerpResultOrigin {
-  return mode === "INTEGRATED"
-    ? "INTEGRATED"
-    : "BLOG_TAB_FALLBACK";
-}
-
-async function fetchSearchPage(
-  input: SerpSearchInput,
-  mode: SearchMode,
-  start = 1,
-): Promise<SearchFetchResult> {
-  const url = buildSearchUrl(
-    input,
-    mode,
-    start,
-  );
+  const url =
+    buildIntegratedSearchUrl(input);
 
   try {
     const httpResult =
@@ -431,45 +410,60 @@ async function fetchSearchPage(
         input,
       );
 
-    const httpCandidates =
-      extractCandidates(
+    const candidates =
+      extractIntegratedBlogCandidates(
         httpResult.html,
-        originForMode(mode),
       );
 
-    const needsBrowser =
-      !httpResult.ok ||
-      looksLikeSecurityPage(
+    if (
+      httpResult.ok &&
+      !looksLikeSecurityPage(
         httpResult.html,
-      ) ||
-      httpCandidates.length === 0;
-
-    if (!needsBrowser) {
+      ) &&
+      candidates.length > 0
+    ) {
       return {
         url,
         html: httpResult.html,
         provider:
-          "NAVER_HTTP_HTML",
+          "NAVER_HTTP_INTEGRATED",
       };
     }
   } catch {
-    // Direct HTTP is best-effort only.
-    // Try a normal local Chrome DOM capture next.
+    // 직접 HTTP는 best-effort.
   }
 
   try {
-    return await fetchWithBrowser(
+    const captured =
+      await captureUrlWithLocalBrowser(
+        url,
+        input.device,
+      );
+
+    if (
+      looksLikeSecurityPage(
+        captured.html,
+      )
+    ) {
+      throw new Error(
+        "Naver 통합검색을 로컬 Chrome으로 열었지만 보안 확인/접근 제한 페이지가 반환되었습니다.",
+      );
+    }
+
+    return {
       url,
-      input,
-    );
+      html: captured.html,
+      provider:
+        "NAVER_LOCAL_BROWSER_INTEGRATED",
+    };
   } catch (browserError) {
     const message =
       browserError instanceof Error
         ? browserError.message
-        : "로컬 Chrome 검색 캡처 실패";
+        : "로컬 Chrome 통합검색 캡처 실패";
 
     throw new Error(
-      `Naver 검색 자동 수집에 실패했습니다. 직접 HTTP 요청이 제한되거나 검색 HTML을 읽지 못해 로컬 Chrome으로 다시 시도했지만 성공하지 못했습니다. ${message}`,
+      `Naver 통합검색 Blog 영역 수집에 실패했습니다. CAPTCHA나 접근 제한을 우회하지 않습니다. ${message}`,
     );
   }
 }
@@ -480,139 +474,49 @@ export class NaverIntegratedSearchProvider
   async search(
     input: SerpSearchInput,
   ): Promise<SerpSnapshot> {
-    const integrated =
-      await fetchSearchPage(
-        input,
-        "INTEGRATED",
+    const page =
+      await fetchIntegratedPage(input);
+
+    const candidates =
+      extractIntegratedBlogCandidates(
+        page.html,
       );
 
-    const integratedCandidates =
-      extractCandidates(
-        integrated.html,
-        "INTEGRATED",
-      );
-
-    const combined = [
-      ...integratedCandidates,
-    ];
-
-    const providers = new Set<
-      SearchProviderName
-    >([integrated.provider]);
-
-    const responseParts = [
-      integrated.html,
-    ];
-
-    if (
-      combined.length <
-        INTEGRATED_TARGET &&
-      combined.length < MAX_CANDIDATES
-    ) {
-      const seen = new Set(
-        combined.map(
-          (item) =>
-            item.normalizedUrl,
-        ),
-      );
-
-      for (
-        const start of BLOG_PAGE_STARTS
-      ) {
-        const blogPage =
-          await fetchSearchPage(
-            input,
-            "BLOG",
-            start,
-          );
-
-        providers.add(
-          blogPage.provider,
-        );
-        responseParts.push(
-          blogPage.html,
-        );
-
-        const fallbackCandidates =
-          extractCandidates(
-            blogPage.html,
-            "BLOG_TAB_FALLBACK",
-          );
-
-        for (
-          const candidate of
-          fallbackCandidates
-        ) {
-          if (
-            seen.has(
-              candidate.normalizedUrl,
-            )
-          ) {
-            continue;
-          }
-
-          seen.add(
-            candidate.normalizedUrl,
-          );
-          combined.push(candidate);
-
-          if (
-            combined.length >=
-            MAX_CANDIDATES
-          ) {
-            break;
-          }
-        }
-
-        if (
-          combined.length >=
-          INTEGRATED_TARGET ||
-          combined.length >=
-          MAX_CANDIDATES
-        ) {
-          break;
-        }
-      }
-    }
-
-    if (combined.length === 0) {
+    if (candidates.length === 0) {
       throw new Error(
-        "Naver 검색 페이지는 열렸지만 Naver Blog 글 후보를 찾지 못했습니다. 검색 화면 구조가 바뀌었을 가능성이 있어 SERP Parser 확인이 필요합니다.",
+        "Naver 통합검색 페이지는 열렸지만 통합검색 안에서 실제 Naver Blog 게시글을 찾지 못했습니다.",
       );
     }
 
     const results: SerpResult[] =
-      combined
-        .slice(0, MAX_CANDIDATES)
-        .map(
-          (candidate, index) => ({
-            rank: index + 1,
-            title:
-              candidate.title,
-            url: candidate.url,
-            normalizedUrl:
-              candidate.normalizedUrl,
-            origin:
-              candidate.origin,
-            included: index < 7,
-          }),
-        );
+      candidates.map(
+        (candidate, index) => ({
+          rank: index + 1,
+          title: candidate.title,
+          url: candidate.url,
+          normalizedUrl:
+            candidate.normalizedUrl,
+          origin: "INTEGRATED",
+          included: index < 7,
+          sectionArea:
+            candidate.sectionArea,
+          blockId:
+            candidate.blockId,
+          domIndex:
+            candidate.domIndex,
+        }),
+      );
 
     return {
       keyword: input.keyword,
       device: input.device,
       capturedAt:
         new Date().toISOString(),
-      provider:
-        Array.from(providers).join(
-          "+",
-        ),
-      searchUrl: integrated.url,
+      provider: page.provider,
+      searchUrl: page.url,
       responseHash:
         createHash("sha256")
-          .update(
-            responseParts.join("\n"),
-          )
+          .update(page.html)
           .digest("hex"),
       results,
     };

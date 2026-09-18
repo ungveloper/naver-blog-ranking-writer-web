@@ -77,23 +77,10 @@ export default async function AnalysisPage({
         )
       : null;
 
-  const integratedCount =
-    primarySnapshot?.candidates.filter(
-      (candidate) =>
-        candidate.origin === "INTEGRATED",
-    ).length ?? 0;
-
-  const fallbackCount =
-    primarySnapshot?.candidates.filter(
-      (candidate) =>
-        candidate.origin === "BLOG_TAB_FALLBACK" ||
-        candidate.origin === "VIEW_FALLBACK",
-    ).length ?? 0;
-
   return (
     <PageShell
       title={`${project.primaryKeyword} 분석`}
-      description="Primary Keyword로 Naver 검색을 직접 실행해 실제 노출 Naver Blog 후보를 수집하고, 사용자는 관련 없는 결과만 제외한 뒤 Benchmark 5~10개를 확정합니다."
+      description="Primary Keyword의 Naver 통합검색 안에서 실제로 노출된 Naver Blog 게시글만 DOM 순서대로 수집합니다. 별도 블로그탭 결과는 섞지 않습니다."
     >
       {query.error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
@@ -103,9 +90,8 @@ export default async function AnalysisPage({
 
       {query.searched ? (
         <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-          Naver 검색에서 Blog 후보{" "}
-          {query.searched}개를 수집했습니다. 아래에서
-          최종 Benchmark를 선택하세요.
+          Naver 통합검색에서 실제 Blog 게시글{" "}
+          {query.searched}개를 수집했습니다.
         </div>
       ) : null}
 
@@ -155,17 +141,16 @@ export default async function AnalysisPage({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h2 className="font-semibold">
-                Naver 상위 노출 글 자동 수집
+                Naver 통합검색 Blog 상위 노출 수집
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                URL을 직접 입력하지 않습니다. 현재
-                Primary Keyword인{" "}
+                현재 Primary Keyword{" "}
                 <strong className="text-foreground">
                   {project.primaryKeyword}
                 </strong>
-                로 로그아웃 상태의 Naver 검색 페이지를
-                서버에서 조회하고, 실제 노출 순서에서 Naver
-                Blog 글만 추립니다.
+                로 Naver 통합검색을 직접 조회합니다.
+                통합검색 HTML 안에서 실제 Naver Blog 게시글
+                URL만 추리고 DOM 노출 순서대로 저장합니다.
               </p>
             </div>
 
@@ -180,18 +165,17 @@ export default async function AnalysisPage({
                 className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
               >
                 {primarySnapshot
-                  ? "현재 Naver 결과 다시 수집"
-                  : "Naver에서 상위 글 찾기"}
+                  ? "현재 통합검색 다시 수집"
+                  : "Naver 통합검색 Blog 찾기"}
               </button>
             </form>
           </div>
 
           <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
-            모바일 프로젝트는 모바일 통합검색을 주
-            기준으로 사용합니다. 통합검색에서 후보가
-            부족한 경우에만 블로그 검색탭의 관련도순 결과를 보완 후보로
-            표시합니다. 보안 확인·접근 제한 응답이 오면
-            우회하지 않고 중단합니다.
+            블로그 검색탭·VIEW 결과를 보완용으로 섞지
+            않습니다. 통합검색에 Blog 게시글이 4개만
+            노출되면 4개가 현재 snapshot의 전체 표본입니다.
+            5개 미만이면 제한 표본으로 분석합니다.
           </p>
         </section>
       ) : null}
@@ -200,7 +184,7 @@ export default async function AnalysisPage({
         <section className="grid gap-4 rounded-xl border p-5">
           <div>
             <h2 className="font-semibold">
-              검색 후보
+              통합검색 Blog 후보
             </h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               {primarySnapshot.device === "MOBILE"
@@ -211,10 +195,8 @@ export default async function AnalysisPage({
                 primarySnapshot.capturedAt,
               ).toLocaleString("ko-KR")}
               {" · "}
-              통합검색 {integratedCount}개
-              {fallbackCount > 0
-                ? ` · 블로그탭 보완 ${fallbackCount}개`
-                : ""}
+              실제 Blog 노출{" "}
+              {primarySnapshot.candidates.length}개
             </p>
 
             {primarySnapshot.searchUrl ? (
@@ -224,12 +206,12 @@ export default async function AnalysisPage({
                 rel="noreferrer"
                 className="mt-2 inline-block text-xs underline underline-offset-4"
               >
-                실제 검색 URL 열기
+                실제 통합검색 URL 열기
               </a>
             ) : null}
           </div>
 
-          {primarySnapshot.candidates.length >= 5 ? (
+          {primarySnapshot.candidates.length > 0 ? (
             <BenchmarkCandidateSelector
               projectId={project.id}
               snapshotId={primarySnapshot.id}
@@ -246,23 +228,20 @@ export default async function AnalysisPage({
             />
           ) : (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm leading-6">
-              수집된 Naver Blog 후보가{" "}
-              {primarySnapshot.candidates.length}개뿐이라
-              Benchmark 최소 5개를 충족하지 못했습니다.
-              검색 결과를 다시 수집해보세요.
+              현재 통합검색 snapshot에서 실제 Naver Blog
+              게시글을 찾지 못했습니다.
             </div>
           )}
         </section>
       ) : (
         <section className="rounded-xl border border-dashed p-6">
           <h2 className="font-semibold">
-            아직 SERP snapshot이 없습니다.
+            아직 통합검색 snapshot이 없습니다.
           </h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            위의 “Naver에서 상위 글 찾기”를 누르면 이
-            프로젝트의 Primary Keyword로 직접 검색해
-            후보를 가져옵니다. URL을 복사해서 입력할
-            필요가 없습니다.
+            위 버튼을 누르면 Primary Keyword의 Naver
+            통합검색을 직접 조회하고, 통합검색 안의 실제
+            Naver Blog 게시글만 가져옵니다.
           </p>
         </section>
       )}
@@ -271,12 +250,13 @@ export default async function AnalysisPage({
       primaryDevice === "MOBILE" ? (
         <section className="rounded-xl border p-5">
           <h2 className="font-semibold">
-            데스크탑 참고 snapshot
+            데스크탑 통합검색 참고 snapshot
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {desktopReference.resultCount}개 후보 ·
-            모바일 결과를 주 Benchmark로 사용하고
-            데스크탑은 참고 비교용으로 저장했습니다.
+            실제 Naver Blog 게시글{" "}
+            {desktopReference.resultCount}개 · 모바일을
+            주 기준으로 사용하고 데스크탑은 참고 비교용으로
+            저장했습니다.
           </p>
         </section>
       ) : null}
@@ -309,6 +289,16 @@ export default async function AnalysisPage({
         </section>
       ) : (
         <>
+          {summary.sampleAdequacy === "LIMITED" ? (
+            <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm leading-6">
+              현재 Benchmark는 {summary.count}개로 권장
+              표본 5개보다 적습니다. 통합검색 실제 노출만
+              사용한다는 원칙을 우선해 분석은 진행하지만,
+              중앙값·범위 등 집계 결과는 제한 표본으로
+              해석해야 합니다.
+            </section>
+          ) : null}
+
           <section className="grid gap-4 md:grid-cols-4">
             <div className="rounded-xl border p-5">
               <p className="text-xs text-muted-foreground">
@@ -368,9 +358,9 @@ export default async function AnalysisPage({
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               관찰 범위 {summary.keywordCountMin}~
-              {summary.keywordCountMax}회. 상위 문서에서
-              관찰된 패턴이며 순위 원인이나 권장 반복
-              횟수를 의미하지 않습니다.
+              {summary.keywordCountMax}회. 현재 통합검색
+              노출 문서에서 관찰된 패턴이며 순위 원인이나
+              권장 반복 횟수를 의미하지 않습니다.
             </p>
           </section>
 
@@ -380,8 +370,8 @@ export default async function AnalysisPage({
                 Benchmark Article Features
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                선택한 실제 노출 글의 deterministic
-                snapshot입니다.
+                통합검색에서 실제 노출된 Naver Blog 글의
+                deterministic snapshot입니다.
               </p>
             </div>
 

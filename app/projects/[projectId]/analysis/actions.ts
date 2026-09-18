@@ -46,7 +46,7 @@ export async function searchNaverSerpAction(
         ? "이 프로젝트에서 Naver 검색을 실행할 권한이 없습니다."
         : error instanceof Error
           ? error.message
-          : "Naver 검색 결과를 가져오지 못했습니다.";
+          : "Naver 통합검색 결과를 가져오지 못했습니다.";
 
     redirect(
       `/projects/${projectId}/analysis?error=${encodeURIComponent(message)}`,
@@ -88,11 +88,11 @@ export async function finalizeSerpBenchmarkAction(
   }
 
   if (
-    resultIds.length < 5 ||
+    resultIds.length < 1 ||
     resultIds.length > 10
   ) {
     redirect(
-      `/projects/${projectId}/analysis?error=${encodeURIComponent("Benchmark 후보는 5~10개를 선택하세요.")}`,
+      `/projects/${projectId}/analysis?error=${encodeURIComponent("통합검색 Blog 결과 중 1~10개를 선택하세요.")}`,
     );
   }
 

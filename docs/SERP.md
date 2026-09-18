@@ -1,55 +1,79 @@
-# Naver SERP Candidate Discovery
+# Naver Integrated Search Blog Benchmark
 
-## 기본 흐름
+## 제품 기준
 
-사용자가 Naver Blog URL을 직접 입력하지 않는다.
+Benchmark의 검색 후보는 Naver 블로그 검색탭 결과가 아니다.
+
+반드시:
 
 ```text
-Content Project
-→ Primary Keyword
-→ Naver 통합검색 실행
-→ 실제 통합검색의 Naver Blog 글 추출
-→ 부족한 경우 현재 Naver 블로그 검색탭 관련도순으로 보완
-→ URL 정규화 / 중복 제거
-→ 후보 목록
-→ 사용자가 관련 없는 결과만 제외
-→ 최종 5~10개 Benchmark
-→ 본문 Parser + Article Features
+Primary Keyword
+→ Naver 통합검색
+→ 통합검색 페이지 내부
+→ 실제 Naver Blog 게시글
+→ DOM 노출 순서
+→ Benchmark 후보
 ```
 
-## 통합검색과 블로그탭은 같은 순위가 아니다
+만 사용한다.
 
-`INTEGRATED`
-- 실제 통합검색 HTML에서 발견한 Naver Blog 글.
-- 가장 우선한다.
+## 첨부 HTML에서 확인한 구조
 
-`BLOG_TAB_FALLBACK`
-- 통합검색의 Naver Blog 글이 Benchmark 최소 수를 충족하지 못할 때만 추가한다.
-- Naver 블로그 검색탭의 관련도순 후보다.
-- UI에서 `블로그탭 보완 후보`로 표시한다.
-- 통합검색 순위라고 표현하지 않는다.
+현재 Naver 통합검색은 FENDER root 단위로 결과를 렌더링하며 다음과 같은 진단 속성을 노출한다.
 
-`VIEW_FALLBACK`
-- 과거 개발 snapshot DB 호환용.
-- 신규 검색에는 사용하지 않는다.
+- `data-fender-root="true"`
+- `data-meta-ssc="tab.nx.all"` (PC 통합검색 예)
+- `data-meta-area`
+- `data-block-id`
 
-Naver는 2024-02-01 VIEW 탭을 블로그/카페 탭으로 전환했으므로 신규 보완 수집에서 VIEW 검색을 사용하지 않는다.
+Naver Blog 게시글은 한 가지 template에만 고정되지 않는다.
+`review/prs_template_v2_review_blog_rra_*`뿐 아니라 `web/prs_template_v2_web_basic_*` 같은 root에도 실제 Blog 게시글 URL이 들어갈 수 있다.
 
-## 블로그탭 보완
+따라서 특정 CSS class 하나가 아니라:
 
-현재 보완 검색은 `ssc=tab.blog.all`을 사용한다.
+1. 현재 요청한 페이지 자체가 Naver 통합검색인지 보장
+2. FENDER root DOM 순서를 보존
+3. 각 root 내부에서 `blog.naver.com/{blogId}/{numericLogNo}` 실제 게시글 URL만 채택
+4. 같은 게시글의 제목/본문/이미지 링크 중복 제거
+5. 실제 게시글만의 순서로 Blog rank 생성
 
-후보가 부족하면 관련도순에서 `start=1`, `11`, `21`을 순서대로 확인한다.
-전체 후보는 최대 20개만 저장한다.
+방식을 사용한다.
+
+## 표본 수
+
+목표는 5~10개다.
+
+하지만 통합검색에서 실제 Naver Blog 게시글이 4개만 노출되면:
+- 블로그탭에서 5번째를 채우지 않는다.
+- 4개가 현재 snapshot의 실제 전체 표본이다.
+- 분석은 허용한다.
+- `LIMITED` 표본 경고를 표시한다.
+
+관련 없는 결과를 사용자가 제외해 1~4개가 남아도 동일하게 제한 표본으로 분석할 수 있다.
 
 ## Provider
 
-각 검색 표면마다:
+1. `NAVER_HTTP_INTEGRATED`
+2. `NAVER_LOCAL_BROWSER_INTEGRATED`
 
-1. `NAVER_HTTP_HTML`
-2. `NAVER_LOCAL_BROWSER_DOM`
+둘 모두 같은 통합검색 URL만 사용한다.
 
-HTTP가 정상 검색 HTML을 주면 그대로 사용하고,
-그렇지 않으면 로컬 Chrome/Chromium DOM으로 다시 확인한다.
+별도:
+- blog tab
+- VIEW tab
+- 검색 API의 독립 블로그 결과
 
-CAPTCHA나 접근 제한은 우회하지 않는다.
+를 Benchmark 보완용으로 섞지 않는다.
+
+## 보안
+
+CAPTCHA/접근 제한은 우회하지 않는다.
+
+## 저장 진단값
+
+`serp_results`에:
+- `section_area`
+- `block_id`
+- `dom_index`
+
+를 함께 저장해 Naver 구조 변경 시 실제 어느 통합검색 root에서 수집했는지 확인할 수 있게 한다.
