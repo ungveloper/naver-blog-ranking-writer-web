@@ -253,6 +253,106 @@ function getSourceNameFromCard(
 }
 
 
+function normalizeSerpThumbnailUrl(
+  rawUrl: string,
+): string {
+  const cleaned = rawUrl
+    .replace(/&amp;/g, "&")
+    .trim();
+
+  if (!cleaned) {
+    return "";
+  }
+
+  const absolute = cleaned.startsWith("//")
+    ? `https:${cleaned}`
+    : cleaned;
+
+  try {
+    const url = new URL(absolute);
+
+    const encodedSrc =
+      url.searchParams.get("src");
+
+    if (encodedSrc) {
+      const decoded =
+        decodeRepeatedly(encodedSrc);
+
+      const unwrapped: string =
+        normalizeSerpThumbnailUrl(decoded);
+
+      if (unwrapped) {
+        return unwrapped;
+      }
+    }
+
+    [
+      "type",
+      "w",
+      "h",
+      "size",
+      "width",
+      "height",
+    ].forEach((key) => {
+      url.searchParams.delete(key);
+    });
+
+    return url.toString();
+  } catch {
+    return absolute;
+  }
+}
+
+function getLargestSrcsetCandidate(
+  rawSrcset: string | null | undefined,
+) {
+  if (!rawSrcset) {
+    return "";
+  }
+
+  const candidates = rawSrcset
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => {
+      const parts = item.split(/\s+/);
+      const url = parts[0] || "";
+      const descriptor =
+        parts[1] || "";
+
+      let score = 0;
+
+      const widthMatch =
+        descriptor.match(/^(\d+)w$/);
+
+      if (widthMatch) {
+        score = Number(widthMatch[1]);
+      }
+
+      const densityMatch =
+        descriptor.match(
+          /^(\d+(?:\.\d+)?)x$/,
+        );
+
+      if (densityMatch) {
+        score =
+          Number(densityMatch[1]) *
+          10_000;
+      }
+
+      return {
+        url,
+        score,
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.score - a.score,
+    );
+
+  return candidates[0]?.url || "";
+}
+
 function getThumbnailFromCard(
   card: cheerio.Cheerio<AnyNode>,
 ) {
@@ -265,22 +365,31 @@ function getThumbnailFromCard(
   ];
 
   for (const selector of selectors) {
-    const images = card.find(selector).toArray();
+    const images =
+      card.find(selector).toArray();
 
     for (const image of images) {
       const node = card.find(image);
+
       const rawCandidates = [
+        node.attr("data-original"),
+        node.attr("data-origin-src"),
         node.attr("data-lazy-src"),
         node.attr("data-src"),
+        node.attr("data-lw_src"),
+        getLargestSrcsetCandidate(
+          node.attr("srcset"),
+        ),
         node.attr("src"),
       ];
 
       for (const raw of rawCandidates) {
-        if (!raw) continue;
+        if (!raw) {
+          continue;
+        }
 
-        const candidate = raw
-          .replace(/&amp;/g, "&")
-          .trim();
+        const candidate =
+          normalizeSerpThumbnailUrl(raw);
 
         if (
           !candidate.startsWith("http://") &&
@@ -290,12 +399,15 @@ function getThumbnailFromCard(
         }
 
         const lowered =
-          candidate.toLocaleLowerCase("en-US");
+          candidate.toLocaleLowerCase(
+            "en-US",
+          );
 
         if (
           lowered.includes("profile") ||
           lowered.includes("favicon") ||
-          lowered.includes("icon")
+          lowered.includes("icon") ||
+          lowered.includes("blank.gif")
         ) {
           continue;
         }
