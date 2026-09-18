@@ -17,7 +17,10 @@ export type BenchmarkDocument = {
   title: string;
   sourceUrl: string;
   canonicalUrl: string;
+  contentText: string;
+  imageUrls: string[];
   imageCount: number;
+  publishedAt: string | null;
   capturedAt: string;
   features: ArticleFeatures;
 };
@@ -33,7 +36,9 @@ type BenchmarkRow = {
   title: string;
   source_url: string;
   canonical_url: string;
+  content_text: string;
   image_urls: string[];
+  published_at: string | null;
   captured_at: string;
   features: ArticleFeatures;
 };
@@ -290,7 +295,9 @@ export async function listBenchmarksForProject(
         sd.title,
         sd.source_url,
         sd.canonical_url,
+        sd.content_text,
         sd.image_urls,
+        sd.published_at::text,
         sd.captured_at::text,
         af.features
       from project_benchmarks pb
@@ -311,9 +318,14 @@ export async function listBenchmarksForProject(
     title: row.title,
     sourceUrl: row.source_url,
     canonicalUrl: row.canonical_url,
+    contentText: row.content_text,
+    imageUrls: Array.isArray(row.image_urls)
+      ? row.image_urls
+      : [],
     imageCount: Array.isArray(row.image_urls)
       ? row.image_urls.length
       : 0,
+    publishedAt: row.published_at,
     capturedAt: row.captured_at,
     features: row.features,
   }));
