@@ -75,7 +75,7 @@ async function getProjectPermission(
   return result.rows[0] ?? null;
 }
 
-export async function importManualBenchmark(
+export async function importBenchmarkUrls(
   userId: string,
   projectId: string,
   urls: string[],
@@ -92,6 +92,12 @@ export async function importManualBenchmark(
     throw new Error("BENCHMARK_IMPORT_FORBIDDEN");
   }
 
+  if (urls.length < 5 || urls.length > 10) {
+    throw new Error(
+      "Benchmark는 5~10개를 선택하세요.",
+    );
+  }
+
   const parsedPosts: NaverBlogPostData[] = [];
 
   for (const [index, url] of urls.entries()) {
@@ -106,7 +112,7 @@ export async function importManualBenchmark(
           : "알 수 없는 파싱 오류";
 
       throw new Error(
-        `${index + 1}번째 URL 파싱 실패: ${message}`,
+        `${index + 1}번째 검색 결과 글 파싱 실패: ${message}`,
       );
     }
 
@@ -259,6 +265,9 @@ export async function importManualBenchmark(
     client.release();
   }
 }
+
+export const importManualBenchmark =
+  importBenchmarkUrls;
 
 export async function listBenchmarksForProject(
   userId: string,
