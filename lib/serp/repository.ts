@@ -6,6 +6,7 @@ import {
 } from "@/lib/serp/naver-integrated";
 import type {
   SerpResultOrigin,
+  SerpSectionKind,
   SerpSnapshot,
 } from "@/lib/serp/provider";
 
@@ -33,6 +34,8 @@ type ResultRow = {
   snapshot_id: string;
   rank: number;
   title: string;
+  snippet: string | null;
+  source_name: string | null;
   url: string;
   normalized_url: string;
   origin: SerpResultOrigin;
@@ -41,12 +44,15 @@ type ResultRow = {
   section_area: string | null;
   block_id: string | null;
   dom_index: number | null;
+  section_kind: SerpSectionKind | null;
 };
 
 export type StoredSerpCandidate = {
   id: string;
   rank: number;
   title: string;
+  snippet: string | null;
+  sourceName: string | null;
   url: string;
   normalizedUrl: string;
   origin: SerpResultOrigin;
@@ -55,6 +61,7 @@ export type StoredSerpCandidate = {
   sectionArea: string | null;
   blockId: string | null;
   domIndex: number | null;
+  sectionKind: SerpSectionKind | null;
 };
 
 export type StoredSerpSnapshot = {
@@ -155,13 +162,16 @@ async function saveSnapshot(
           snapshot_id,
           rank,
           title,
+          snippet,
+          source_name,
           url,
           normalized_url,
           origin,
           included,
           section_area,
           block_id,
-          dom_index
+          dom_index,
+          section_kind
         )
         values (
           $1,
@@ -173,13 +183,18 @@ async function saveSnapshot(
           $7,
           $8,
           $9,
-          $10
+          $10,
+          $11,
+          $12,
+          $13
         )
       `,
       [
         snapshotId,
         result.rank,
         result.title,
+        result.snippet ?? null,
+        result.sourceName ?? null,
         result.url,
         result.normalizedUrl,
         result.origin ?? "INTEGRATED",
@@ -187,6 +202,7 @@ async function saveSnapshot(
         result.sectionArea ?? null,
         result.blockId ?? null,
         result.domIndex ?? null,
+        result.sectionKind ?? null,
       ],
     );
   }
@@ -328,6 +344,8 @@ export async function getLatestSerpSnapshotsForProject(
         snapshot_id,
         rank,
         title,
+        snippet,
+        source_name,
         url,
         normalized_url,
         origin,
@@ -335,7 +353,8 @@ export async function getLatestSerpSnapshotsForProject(
         exclusion_reason,
         section_area,
         block_id,
-        dom_index
+        dom_index,
+        section_kind
       from serp_results
       where snapshot_id = any($1::uuid[])
       order by snapshot_id, rank
@@ -355,6 +374,8 @@ export async function getLatestSerpSnapshotsForProject(
       id: row.id,
       rank: row.rank,
       title: row.title,
+      snippet: row.snippet,
+      sourceName: row.source_name,
       url: row.url,
       normalizedUrl: row.normalized_url,
       origin: row.origin,
@@ -363,6 +384,7 @@ export async function getLatestSerpSnapshotsForProject(
       sectionArea: row.section_area,
       blockId: row.block_id,
       domIndex: row.dom_index,
+      sectionKind: row.section_kind,
     });
 
     resultMap.set(row.snapshot_id, list);

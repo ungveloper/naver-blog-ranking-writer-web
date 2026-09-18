@@ -41,19 +41,21 @@ export default async function ContentProjectPage({
   return (
     <PageShell
       title={project.primaryKeyword}
-      description={`${project.hospitalName} 콘텐츠 프로젝트 · Hospital Profile과 분리된 독립 분석 작업`}
+      description={`${project.hospitalName} 콘텐츠 프로젝트 · Keyword별 독립 분석 Workflow`}
     >
       {created ? (
         <div className="rounded-xl border bg-muted/30 px-4 py-3 text-sm">
-          콘텐츠 프로젝트가 생성되었습니다. 병원/키워드 입력이
-          끝났으므로 Workflow는 SERP 단계부터 시작합니다.
+          콘텐츠 프로젝트가 생성되었습니다. STEP 1
+          통합검색 수집부터 시작하세요.
         </div>
       ) : null}
 
       <section className="grid gap-5 rounded-xl border p-5">
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <p className="text-xs text-muted-foreground">병원</p>
+            <p className="text-xs text-muted-foreground">
+              병원
+            </p>
             <p className="mt-1 text-sm font-medium">
               {project.hospitalName}
             </p>
@@ -73,7 +75,9 @@ export default async function ContentProjectPage({
               현재 단계
             </p>
             <p className="mt-1 text-sm font-medium">
-              {getWorkflowStageLabel(project.workflowStage)}
+              {getWorkflowStageLabel(
+                project.workflowStage,
+              )}
             </p>
           </div>
         </div>
@@ -116,8 +120,7 @@ export default async function ContentProjectPage({
             Workflow
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            HOSPITAL과 KEYWORD는 프로젝트 생성 시 완료된 것으로
-            보고 SERP부터 다음 작업을 이어갑니다.
+            완료된 단계와 현재 진행 중인 단계를 표시합니다.
           </p>
         </div>
 
@@ -134,10 +137,10 @@ export default async function ContentProjectPage({
                 className={[
                   "rounded-full border px-3 py-1.5 text-xs",
                   isCurrent
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-blue-600 text-white"
                     : "",
                   isCompleted
-                    ? "bg-muted text-muted-foreground"
+                    ? "bg-emerald-50 text-emerald-800"
                     : "",
                 ]
                   .filter(Boolean)
@@ -152,20 +155,22 @@ export default async function ContentProjectPage({
 
       <section className="grid gap-4 rounded-xl border p-5">
         <div>
-          <h2 className="font-semibold">다음 작업</h2>
+          <h2 className="font-semibold">
+            현재 작업
+          </h2>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            다음 패치에서 Naver Blog Parser를 이식한 뒤 Manual
-            Benchmark Vertical Slice를 연결합니다. 자동 SERP가
-            없어도 실제 상위 글 URL을 입력해 분석 엔진부터 검증할
-            수 있게 진행합니다.
+            분석 화면에서 통합검색 Blog 후보를 수집하고
+            Benchmark를 분석하세요. Benchmark 완료 후에는
+            같은 화면에서 ChatGPT Pro 작업 프롬프트로
+            이어집니다.
           </p>
         </div>
 
         <Link
           href={`/projects/${project.id}/analysis`}
-          className="w-fit rounded-md border px-4 py-2 text-sm font-medium"
+          className="w-fit rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
         >
-          분석 작업 화면 보기
+          분석 Workflow 열기
         </Link>
       </section>
     </PageShell>

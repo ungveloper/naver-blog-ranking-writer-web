@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import * as cheerio from "cheerio";
-import type { Element } from "domhandler";
+import type { AnyNode } from "domhandler";
 import {
   captureUrlWithLocalBrowser,
 } from "@/lib/serp/browser-capture";
@@ -10,6 +10,7 @@ import {
   type SerpProvider,
   type SerpResult,
   type SerpSearchInput,
+  type SerpSectionKind,
   type SerpSnapshot,
 } from "@/lib/serp/provider";
 
@@ -33,16 +34,30 @@ type SearchFetchResult = {
 
 type IntegratedCandidate = {
   title: string;
+  snippet: string;
+  sourceName: string;
   url: string;
   normalizedUrl: string;
   sectionArea?: string;
   blockId?: string;
   domIndex: number;
+  sectionKind: SerpSectionKind;
+  titleScore: number;
 };
 
 function normalizeText(value: string) {
   return value
     .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cleanPresentationText(value: string) {
+  return normalizeText(value)
+    .replace(/새 창 열림/g, " ")
+    .replace(/Keep에 저장/g, " ")
+    .replace(/Keep에 바로가기/g, " ")
+    .replace(/옵션 메뉴 열기/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -130,69 +145,257 @@ function extractBlogUrlFromValue(
   return null;
 }
 
-function extractAnchorTitle(
+function getCard(
   $: cheerio.CheerioAPI,
-  element: Element,
-  fallbackRank: number,
+  element: AnyNode,
 ) {
   const anchor = $(element);
 
-  const headline = normalizeText(
-    anchor
-      .find(
-        ".sds-comps-text-type-headline1, [data-template-id='title']",
-      )
-      .first()
-      .text(),
+  const card = anchor.closest(
+    [
+      "[data-template-id='ugcItem']",
+      ".fds-web-doc-root",
+      "article",
+      "li",
+      ".api_subject_bx",
+    ].join(", "),
   );
 
-  if (headline.length >= 4) {
-    return headline.slice(0, 180);
-  }
+  return card.length > 0 ? card : anchor;
+}
 
-  const directCandidates = [
-    anchor.attr("title"),
-    anchor.attr("aria-label"),
-    anchor.text(),
+function getHeadlineFromCard(
+  card: cheerio.Cheerio<AnyNode>,
+) {
+  const selectors = [
+    ".sds-comps-text-type-headline1",
+    "[data-template-id='title']",
   ];
 
-  for (const candidate of directCandidates) {
-    const normalized = normalizeText(
-      candidate || "",
+  for (const selector of selectors) {
+    const value = cleanPresentationText(
+      card.find(selector).first().text(),
     );
 
-    if (normalized.length >= 4) {
-      return normalized.slice(0, 180);
+    if (value.length >= 4) {
+      return value.slice(0, 180);
     }
   }
 
-  const parent = anchor.closest(
-    "[data-template-id='ugcItem'], li, article, .api_subject_bx, .fds-web-doc-root",
-  );
+  return "";
+}
 
-  const parentHeadline = normalizeText(
-    parent
+function getSnippetFromCard(
+  $: cheerio.CheerioAPI,
+  card: cheerio.Cheerio<AnyNode>,
+  title: string,
+) {
+  const candidates = card
+    .find(
+      [
+        ".sds-comps-text-type-body1",
+        ".fds-ugc-ellipsis3",
+        "[data-template-id='content']",
+      ].join(", "),
+    )
+    .toArray()
+    .map((element) =>
+      cleanPresentationText($(element).text()),
+    )
+    .filter(
+      (value) =>
+        value.length >= 20 &&
+        value !== title &&
+        !value.startsWith(title),
+    );
+
+  if (candidates.length === 0) {
+    return "";
+  }
+
+  const preferred = candidates.sort(
+    (a, b) => b.length - a.length,
+  )[0];
+
+  return preferred.slice(0, 260);
+}
+
+function getSourceNameFromCard(
+  card: cheerio.Cheerio<AnyNode>,
+  normalizedUrl: string,
+) {
+  const selectors = [
+    ".sds-comps-profile-info-title-text",
+    "[data-template-id='articleSource'] .sds-comps-profile-info-title",
+  ];
+
+  for (const selector of selectors) {
+    const value = cleanPresentationText(
+      card.find(selector).first().text(),
+    );
+
+    if (value.length >= 2) {
+      return value.slice(0, 80);
+    }
+  }
+
+  try {
+    const url = new URL(normalizedUrl);
+    return (
+      url.pathname
+        .split("/")
+        .filter(Boolean)[0] || "Naver Blog"
+    );
+  } catch {
+    return "Naver Blog";
+  }
+}
+
+function classifySection(
+  blockId: string | undefined,
+): SerpSectionKind {
+  const value = blockId || "";
+
+  if (
+    value.includes("review_blog") ||
+    value.includes("service-ugc")
+  ) {
+    return "REVIEW_BLOG";
+  }
+
+  if (value.includes("web/")) {
+    return "WEB_BLOG";
+  }
+
+  return "OTHER";
+}
+
+function extractAnchorPresentation(
+  $: cheerio.CheerioAPI,
+  element: AnyNode,
+  normalizedUrl: string,
+  fallbackRank: number,
+) {
+  const anchor = $(element);
+  const card = getCard($, element);
+  const cardHeadline =
+    getHeadlineFromCard(card);
+
+  if (cardHeadline) {
+    return {
+      title: cardHeadline,
+      snippet: getSnippetFromCard(
+        $,
+        card,
+        cardHeadline,
+      ),
+      sourceName: getSourceNameFromCard(
+        card,
+        normalizedUrl,
+      ),
+      titleScore: 100,
+    };
+  }
+
+  const ownHeadline = cleanPresentationText(
+    anchor
       .find(".sds-comps-text-type-headline1")
       .first()
       .text(),
   );
 
-  if (parentHeadline.length >= 4) {
-    return parentHeadline.slice(0, 180);
+  if (ownHeadline.length >= 4) {
+    return {
+      title: ownHeadline.slice(0, 180),
+      snippet: getSnippetFromCard(
+        $,
+        card,
+        ownHeadline,
+      ),
+      sourceName: getSourceNameFromCard(
+        card,
+        normalizedUrl,
+      ),
+      titleScore: 90,
+    };
   }
 
-  return `Naver 통합검색 Blog 결과 ${fallbackRank}`;
+  const attrTitle = cleanPresentationText(
+    anchor.attr("title") ||
+      anchor.attr("aria-label") ||
+      "",
+  );
+
+  if (
+    attrTitle.length >= 4 &&
+    attrTitle.length <= 180
+  ) {
+    return {
+      title: attrTitle,
+      snippet: getSnippetFromCard(
+        $,
+        card,
+        attrTitle,
+      ),
+      sourceName: getSourceNameFromCard(
+        card,
+        normalizedUrl,
+      ),
+      titleScore: 60,
+    };
+  }
+
+  const directText = cleanPresentationText(
+    anchor.text(),
+  );
+
+  if (
+    directText.length >= 4 &&
+    directText.length <= 180
+  ) {
+    return {
+      title: directText,
+      snippet: getSnippetFromCard(
+        $,
+        card,
+        directText,
+      ),
+      sourceName: getSourceNameFromCard(
+        card,
+        normalizedUrl,
+      ),
+      titleScore: 40,
+    };
+  }
+
+  return {
+    title: `Naver 통합검색 Blog 결과 ${fallbackRank}`,
+    snippet: getSnippetFromCard(
+      $,
+      card,
+      "",
+    ),
+    sourceName: getSourceNameFromCard(
+      card,
+      normalizedUrl,
+    ),
+    titleScore: 1,
+  };
 }
 
 function collectPostAnchorsFromRoot(
   $: cheerio.CheerioAPI,
-  root: cheerio.Cheerio<Element>,
+  root: cheerio.Cheerio<AnyNode>,
   domIndex: number,
 ) {
   const found = new Map<
     string,
     IntegratedCandidate
   >();
+
+  const blockId =
+    root.attr("data-block-id") ||
+    undefined;
 
   root.find("a").each((_, element) => {
     const anchor = $(element);
@@ -221,30 +424,48 @@ function collectPostAnchorsFromRoot(
       return;
     }
 
-    const title = extractAnchorTitle(
-      $,
-      element,
-      found.size + 1,
-    );
+    const presentation =
+      extractAnchorPresentation(
+        $,
+        element,
+        normalizedUrl,
+        found.size + 1,
+      );
+
+    const candidate: IntegratedCandidate = {
+      ...presentation,
+      url: normalizedUrl,
+      normalizedUrl,
+      sectionArea:
+        root.attr("data-meta-area") ||
+        undefined,
+      blockId,
+      domIndex,
+      sectionKind:
+        classifySection(blockId),
+    };
 
     const existing =
       found.get(normalizedUrl);
 
     if (
       !existing ||
-      title.length > existing.title.length
+      candidate.titleScore >
+        existing.titleScore
+    ) {
+      found.set(normalizedUrl, candidate);
+      return;
+    }
+
+    if (
+      existing.titleScore ===
+        candidate.titleScore &&
+      !existing.snippet &&
+      candidate.snippet
     ) {
       found.set(normalizedUrl, {
-        title,
-        url: normalizedUrl,
-        normalizedUrl,
-        sectionArea:
-          root.attr("data-meta-area") ||
-          undefined,
-        blockId:
-          root.attr("data-block-id") ||
-          undefined,
-        domIndex,
+        ...existing,
+        snippet: candidate.snippet,
       });
     }
   });
@@ -266,10 +487,6 @@ function extractIntegratedBlogCandidates(
   roots.each((rootIndex, rootElement) => {
     const root = $(rootElement);
 
-    // 이 페이지 자체가 Naver 통합검색 URL이므로,
-    // FENDER root 안에서 '실제 Naver Blog 게시글 URL'만 뽑는다.
-    // 첨부 HTML의 data-meta-ssc=tab.nx.all / review_blog_rra / web_basic
-    // 등 세부 템플릿 이름은 기록하되 특정 템플릿 하나에 종속하지 않는다.
     const rootCandidates =
       collectPostAnchorsFromRoot(
         $,
@@ -299,10 +516,8 @@ function extractIntegratedBlogCandidates(
     return ordered;
   }
 
-  // Naver가 FENDER root 표기를 바꾼 경우의 제한적 호환.
-  // 여전히 '현재 통합검색 페이지 내부'의 실제 Blog 게시글만 허용한다.
   const fallbackRoot =
-    $.root() as unknown as cheerio.Cheerio<Element>;
+    $.root() as unknown as cheerio.Cheerio<AnyNode>;
 
   return collectPostAnchorsFromRoot(
     $,
@@ -493,6 +708,12 @@ export class NaverIntegratedSearchProvider
         (candidate, index) => ({
           rank: index + 1,
           title: candidate.title,
+          snippet:
+            candidate.snippet ||
+            undefined,
+          sourceName:
+            candidate.sourceName ||
+            undefined,
           url: candidate.url,
           normalizedUrl:
             candidate.normalizedUrl,
@@ -504,6 +725,8 @@ export class NaverIntegratedSearchProvider
             candidate.blockId,
           domIndex:
             candidate.domIndex,
+          sectionKind:
+            candidate.sectionKind,
         }),
       );
 

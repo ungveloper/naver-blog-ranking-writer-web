@@ -12,9 +12,16 @@ export type SerpResultOrigin =
   | "INTEGRATED"
   | "VIEW_FALLBACK";
 
+export type SerpSectionKind =
+  | "REVIEW_BLOG"
+  | "WEB_BLOG"
+  | "OTHER";
+
 export interface SerpResult {
   rank: number;
   title: string;
+  snippet?: string;
+  sourceName?: string;
   url: string;
   normalizedUrl: string;
   origin?: SerpResultOrigin;
@@ -23,6 +30,7 @@ export interface SerpResult {
   sectionArea?: string;
   blockId?: string;
   domIndex?: number;
+  sectionKind?: SerpSectionKind;
 }
 
 export interface SerpSnapshot {

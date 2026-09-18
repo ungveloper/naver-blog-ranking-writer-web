@@ -137,6 +137,9 @@ export async function finalizeSerpBenchmarkAction(
   revalidatePath(
     `/projects/${projectId}/analysis`,
   );
+  revalidatePath(
+    `/projects/${projectId}/prompt`,
+  );
 
   redirect(
     `/projects/${projectId}/analysis?imported=${importedCount}`,
