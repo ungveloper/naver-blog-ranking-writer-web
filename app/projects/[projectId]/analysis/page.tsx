@@ -86,6 +86,7 @@ export default async function AnalysisPage({
   const fallbackCount =
     primarySnapshot?.candidates.filter(
       (candidate) =>
+        candidate.origin === "BLOG_TAB_FALLBACK" ||
         candidate.origin === "VIEW_FALLBACK",
     ).length ?? 0;
 
@@ -188,7 +189,7 @@ export default async function AnalysisPage({
           <p className="rounded-lg bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">
             모바일 프로젝트는 모바일 통합검색을 주
             기준으로 사용합니다. 통합검색에서 후보가
-            부족한 경우에만 VIEW 결과를 보완 후보로
+            부족한 경우에만 블로그 검색탭의 관련도순 결과를 보완 후보로
             표시합니다. 보안 확인·접근 제한 응답이 오면
             우회하지 않고 중단합니다.
           </p>
@@ -212,7 +213,7 @@ export default async function AnalysisPage({
               {" · "}
               통합검색 {integratedCount}개
               {fallbackCount > 0
-                ? ` · VIEW 보완 ${fallbackCount}개`
+                ? ` · 블로그탭 보완 ${fallbackCount}개`
                 : ""}
             </p>
 

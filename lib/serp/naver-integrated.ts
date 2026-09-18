@@ -16,6 +16,7 @@ import {
 
 const MAX_CANDIDATES = 20;
 const INTEGRATED_TARGET = 10;
+const BLOG_PAGE_STARTS = [1, 11, 21];
 
 const MOBILE_USER_AGENT =
   "Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36";
@@ -26,6 +27,10 @@ const DESKTOP_USER_AGENT =
 type SearchProviderName =
   | "NAVER_HTTP_HTML"
   | "NAVER_LOCAL_BROWSER_DOM";
+
+type SearchMode =
+  | "INTEGRATED"
+  | "BLOG";
 
 type SearchFetchResult = {
   url: string;
@@ -253,8 +258,40 @@ function extractCandidates(
 
 function buildSearchUrl(
   input: SerpSearchInput,
-  mode: "INTEGRATED" | "VIEW",
+  mode: SearchMode,
+  start = 1,
 ) {
+  if (mode === "BLOG") {
+    const url = new URL(
+      "https://search.naver.com/search.naver",
+    );
+
+    url.searchParams.set(
+      "ssc",
+      "tab.blog.all",
+    );
+    url.searchParams.set(
+      "sm",
+      start <= 1
+        ? "tab_jum"
+        : "tab_pge",
+    );
+    url.searchParams.set(
+      "query",
+      input.keyword,
+    );
+    url.searchParams.set(
+      "start",
+      String(start),
+    );
+    url.searchParams.set(
+      "nso",
+      "so:r,p:all,a:all",
+    );
+
+    return url.toString();
+  }
+
   const mobile =
     input.device === "MOBILE";
 
@@ -266,15 +303,8 @@ function buildSearchUrl(
 
   url.searchParams.set(
     "where",
-    mode === "INTEGRATED"
-      ? mobile
-        ? "m"
-        : "nexearch"
-      : mobile
-        ? "m_view"
-        : "view",
+    mobile ? "m" : "nexearch",
   );
-
   url.searchParams.set(
     "query",
     input.keyword,
@@ -375,13 +405,23 @@ async function fetchWithBrowser(
   };
 }
 
+function originForMode(
+  mode: SearchMode,
+): SerpResultOrigin {
+  return mode === "INTEGRATED"
+    ? "INTEGRATED"
+    : "BLOG_TAB_FALLBACK";
+}
+
 async function fetchSearchPage(
   input: SerpSearchInput,
-  mode: "INTEGRATED" | "VIEW",
+  mode: SearchMode,
+  start = 1,
 ): Promise<SearchFetchResult> {
   const url = buildSearchUrl(
     input,
     mode,
+    start,
   );
 
   try {
@@ -394,9 +434,7 @@ async function fetchSearchPage(
     const httpCandidates =
       extractCandidates(
         httpResult.html,
-        mode === "INTEGRATED"
-          ? "INTEGRATED"
-          : "VIEW_FALLBACK",
+        originForMode(mode),
       );
 
     const needsBrowser =
@@ -462,31 +500,15 @@ export class NaverIntegratedSearchProvider
       SearchProviderName
     >([integrated.provider]);
 
-    let responseMaterial =
-      integrated.html;
+    const responseParts = [
+      integrated.html,
+    ];
 
     if (
       combined.length <
         INTEGRATED_TARGET &&
       combined.length < MAX_CANDIDATES
     ) {
-      const view =
-        await fetchSearchPage(
-          input,
-          "VIEW",
-        );
-
-      providers.add(view.provider);
-
-      responseMaterial +=
-        `\n${view.html}`;
-
-      const fallbackCandidates =
-        extractCandidates(
-          view.html,
-          "VIEW_FALLBACK",
-        );
-
       const seen = new Set(
         combined.map(
           (item) =>
@@ -495,23 +517,56 @@ export class NaverIntegratedSearchProvider
       );
 
       for (
-        const candidate of
-        fallbackCandidates
+        const start of BLOG_PAGE_STARTS
       ) {
-        if (
-          seen.has(
-            candidate.normalizedUrl,
-          )
+        const blogPage =
+          await fetchSearchPage(
+            input,
+            "BLOG",
+            start,
+          );
+
+        providers.add(
+          blogPage.provider,
+        );
+        responseParts.push(
+          blogPage.html,
+        );
+
+        const fallbackCandidates =
+          extractCandidates(
+            blogPage.html,
+            "BLOG_TAB_FALLBACK",
+          );
+
+        for (
+          const candidate of
+          fallbackCandidates
         ) {
-          continue;
+          if (
+            seen.has(
+              candidate.normalizedUrl,
+            )
+          ) {
+            continue;
+          }
+
+          seen.add(
+            candidate.normalizedUrl,
+          );
+          combined.push(candidate);
+
+          if (
+            combined.length >=
+            MAX_CANDIDATES
+          ) {
+            break;
+          }
         }
 
-        seen.add(
-          candidate.normalizedUrl,
-        );
-        combined.push(candidate);
-
         if (
+          combined.length >=
+          INTEGRATED_TARGET ||
           combined.length >=
           MAX_CANDIDATES
         ) {
@@ -555,7 +610,9 @@ export class NaverIntegratedSearchProvider
       searchUrl: integrated.url,
       responseHash:
         createHash("sha256")
-          .update(responseMaterial)
+          .update(
+            responseParts.join("\n"),
+          )
           .digest("hex"),
       results,
     };

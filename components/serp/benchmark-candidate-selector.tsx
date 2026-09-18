@@ -8,7 +8,7 @@ export type BenchmarkCandidateItem = {
   rank: number;
   title: string;
   url: string;
-  origin: "INTEGRATED" | "VIEW_FALLBACK";
+  origin: "INTEGRATED" | "BLOG_TAB_FALLBACK" | "VIEW_FALLBACK";
   included: boolean;
 };
 
@@ -120,7 +120,9 @@ export function BenchmarkCandidateSelector({
                     <span className="rounded-full border px-2 py-0.5 text-[11px]">
                       {candidate.origin === "INTEGRATED"
                         ? "통합검색 노출"
-                        : "VIEW 보완 후보"}
+                        : candidate.origin === "BLOG_TAB_FALLBACK"
+                          ? "블로그탭 보완 후보"
+                          : "구 VIEW 보완 후보"}
                     </span>
                   </div>
 
