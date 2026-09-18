@@ -36,6 +36,7 @@ type ResultRow = {
   title: string;
   snippet: string | null;
   source_name: string | null;
+  thumbnail_url: string | null;
   url: string;
   normalized_url: string;
   origin: SerpResultOrigin;
@@ -53,6 +54,7 @@ export type StoredSerpCandidate = {
   title: string;
   snippet: string | null;
   sourceName: string | null;
+  thumbnailUrl: string | null;
   url: string;
   normalizedUrl: string;
   origin: SerpResultOrigin;
@@ -171,7 +173,8 @@ async function saveSnapshot(
           section_area,
           block_id,
           dom_index,
-          section_kind
+          section_kind,
+          thumbnail_url
         )
         values (
           $1,
@@ -186,7 +189,8 @@ async function saveSnapshot(
           $10,
           $11,
           $12,
-          $13
+          $13,
+          $14
         )
       `,
       [
@@ -203,6 +207,7 @@ async function saveSnapshot(
         result.blockId ?? null,
         result.domIndex ?? null,
         result.sectionKind ?? null,
+        result.thumbnailUrl ?? null,
       ],
     );
   }
@@ -346,6 +351,7 @@ export async function getLatestSerpSnapshotsForProject(
         title,
         snippet,
         source_name,
+        thumbnail_url,
         url,
         normalized_url,
         origin,
@@ -376,6 +382,7 @@ export async function getLatestSerpSnapshotsForProject(
       title: row.title,
       snippet: row.snippet,
       sourceName: row.source_name,
+      thumbnailUrl: row.thumbnail_url,
       url: row.url,
       normalizedUrl: row.normalized_url,
       origin: row.origin,

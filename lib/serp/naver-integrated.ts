@@ -36,6 +36,7 @@ type IntegratedCandidate = {
   title: string;
   snippet: string;
   sourceName: string;
+  thumbnailUrl?: string;
   url: string;
   normalizedUrl: string;
   sectionArea?: string;
@@ -251,6 +252,62 @@ function getSourceNameFromCard(
   }
 }
 
+
+function getThumbnailFromCard(
+  card: cheerio.Cheerio<AnyNode>,
+) {
+  const selectors = [
+    "[data-template-id='thumbnail'] img",
+    ".sds-comps-image img",
+    ".fds-thumbnail img",
+    ".fds-comps-image img",
+    "img",
+  ];
+
+  for (const selector of selectors) {
+    const images = card.find(selector).toArray();
+
+    for (const image of images) {
+      const node = card.find(image);
+      const rawCandidates = [
+        node.attr("data-lazy-src"),
+        node.attr("data-src"),
+        node.attr("src"),
+      ];
+
+      for (const raw of rawCandidates) {
+        if (!raw) continue;
+
+        const candidate = raw
+          .replace(/&amp;/g, "&")
+          .trim();
+
+        if (
+          !candidate.startsWith("http://") &&
+          !candidate.startsWith("https://")
+        ) {
+          continue;
+        }
+
+        const lowered =
+          candidate.toLocaleLowerCase("en-US");
+
+        if (
+          lowered.includes("profile") ||
+          lowered.includes("favicon") ||
+          lowered.includes("icon")
+        ) {
+          continue;
+        }
+
+        return candidate;
+      }
+    }
+  }
+
+  return undefined;
+}
+
 function classifySection(
   blockId: string | undefined,
 ): SerpSectionKind {
@@ -278,6 +335,8 @@ function extractAnchorPresentation(
 ) {
   const anchor = $(element);
   const card = getCard($, element);
+  const thumbnailUrl =
+    getThumbnailFromCard(card);
   const cardHeadline =
     getHeadlineFromCard(card);
 
@@ -293,6 +352,7 @@ function extractAnchorPresentation(
         card,
         normalizedUrl,
       ),
+      thumbnailUrl,
       titleScore: 100,
     };
   }
@@ -316,6 +376,7 @@ function extractAnchorPresentation(
         card,
         normalizedUrl,
       ),
+      thumbnailUrl,
       titleScore: 90,
     };
   }
@@ -341,6 +402,7 @@ function extractAnchorPresentation(
         card,
         normalizedUrl,
       ),
+      thumbnailUrl,
       titleScore: 60,
     };
   }
@@ -364,6 +426,7 @@ function extractAnchorPresentation(
         card,
         normalizedUrl,
       ),
+      thumbnailUrl,
       titleScore: 40,
     };
   }
@@ -379,6 +442,7 @@ function extractAnchorPresentation(
       card,
       normalizedUrl,
     ),
+      thumbnailUrl,
     titleScore: 1,
   };
 }
@@ -713,6 +777,9 @@ export class NaverIntegratedSearchProvider
             undefined,
           sourceName:
             candidate.sourceName ||
+            undefined,
+          thumbnailUrl:
+            candidate.thumbnailUrl ||
             undefined,
           url: candidate.url,
           normalizedUrl:

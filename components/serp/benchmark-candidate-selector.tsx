@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element */
+
 import { useMemo, useState } from "react";
 import { finalizeSerpBenchmarkAction } from "@/app/projects/[projectId]/analysis/actions";
 import { ActionSubmitButton } from "@/components/ui/action-submit-button";
@@ -10,6 +12,7 @@ export type BenchmarkCandidateItem = {
   title: string;
   snippet: string | null;
   sourceName: string | null;
+  thumbnailUrl: string | null;
   url: string;
   origin: "INTEGRATED" | "VIEW_FALLBACK";
   included: boolean;
@@ -290,6 +293,22 @@ export function BenchmarkCandidateSelector({
                   aria-label={`${candidate.rank}번 Benchmark 후보 선택`}
                   className="mt-1 size-4"
                 />
+
+                <div className="h-20 w-24 shrink-0 overflow-hidden rounded-lg border bg-muted md:h-24 md:w-32">
+                  {candidate.thumbnailUrl ? (
+                    <img
+                      src={candidate.thumbnailUrl}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center px-2 text-center text-[10px] text-muted-foreground">
+                      썸네일 없음
+                    </div>
+                  )}
+                </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

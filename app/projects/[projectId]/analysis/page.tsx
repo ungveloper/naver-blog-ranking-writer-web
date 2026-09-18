@@ -263,6 +263,7 @@ export default async function AnalysisPage({ params, searchParams }: Props) {
                   title: candidate.title,
                   snippet: candidate.snippet,
                   sourceName: candidate.sourceName,
+                  thumbnailUrl: candidate.thumbnailUrl,
                   url: candidate.url,
                   origin: candidate.origin,
                   included: candidate.included,
@@ -351,6 +352,17 @@ export default async function AnalysisPage({ params, searchParams }: Props) {
                       </p>
                     </div>
                     <CopyPromptButton text={prompt} />
+                  </div>
+
+                  <div className="grid gap-3 rounded-xl border bg-background/80 p-4">
+                    <p className="text-sm font-semibold">프롬프트를 붙여넣은 뒤의 진행 순서</p>
+                    <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                      <div className="rounded-lg border border-violet-200 bg-violet-50 p-3"><strong>(1/4) Reference 분석</strong><p className="mt-1 text-muted-foreground">현재 응답에서 수행</p></div>
+                      <div className="rounded-lg border p-3"><strong>(2/4) 누락 정보 보완</strong><p className="mt-1 text-muted-foreground">질문·Blog Context만 보완</p></div>
+                      <div className="rounded-lg border p-3"><strong>(3/4) Article Brief</strong><p className="mt-1 text-muted-foreground">제목·목차·근거·이미지·CTA 확정</p></div>
+                      <div className="rounded-lg border p-3"><strong>(4/4) READY 판정</strong><p className="mt-1 text-muted-foreground">집필 가능 여부와 다음 이동 안내</p></div>
+                    </div>
+                    <p className="text-xs leading-5 text-muted-foreground">ChatGPT가 한 번에 모든 할 일을 나열하지 않고, 매 응답 마지막에 현재 단계와 사용자가 지금 해야 할 일 하나를 구체적으로 안내하도록 구성했습니다.</p>
                   </div>
 
                   <textarea

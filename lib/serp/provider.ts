@@ -22,6 +22,7 @@ export interface SerpResult {
   title: string;
   snippet?: string;
   sourceName?: string;
+  thumbnailUrl?: string;
   url: string;
   normalizedUrl: string;
   origin?: SerpResultOrigin;

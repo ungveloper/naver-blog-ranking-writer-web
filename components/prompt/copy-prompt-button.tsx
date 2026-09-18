@@ -28,7 +28,7 @@ export function CopyPromptButton({
     >
       {copied
         ? "복사 완료"
-        : "ChatGPT Pro 프롬프트 복사"}
+        : "프롬프트 복사"}
     </button>
   );
 }
